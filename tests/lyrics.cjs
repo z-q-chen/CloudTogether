@@ -1,0 +1,65 @@
+const {_electron:electron}=require('playwright')
+const {expect}=require('@playwright/test')
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path')
+const {fixture}=require('./fixture.cjs')
+const root=path.resolve(__dirname,'..'),out=path.resolve(root,'..'),results=[],errors=[]
+const check=async(name,fn)=>{await fn();results.push({name,passed:true});console.log('PASS',name)}
+;(async()=>{
+  const api=await fixture(),profile=fs.mkdtempSync(path.join(os.tmpdir(),'cloud-lyrics-'))
+  const launch=()=>electron.launch({executablePath:process.env.CLOUD_PACKAGED||undefined,args:process.env.CLOUD_PACKAGED?['--qa','--no-sandbox']:['.','--qa','--no-sandbox'],cwd:root,env:{...process.env,CLOUD_QA_API:api.url,CLOUD_QA_PROFILE:profile}})
+  let app
+  try {
+    app=await launch();let page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message))
+    await page.addInitScript(()=>{const A=window.Audio;window.Audio=class extends A{constructor(...args){super(...args);window.__qaAudio=this}}});await page.reload()
+    await expect(page.locator('.cover-card')).toHaveCount(12)
+    const newWindow=app.waitForEvent('window');await page.getByRole('button',{name:'开启桌面歌词',exact:true}).click();let overlay=await newWindow;overlay.on('pageerror',e=>errors.push(e.message))
+    await check('独立歌词窗口开关、置顶与权限隔离',async()=>{
+      await expect(overlay.locator('.current-line')).toHaveText('播放一首音乐，让歌词来到桌面')
+      await expect(page.locator('.lyrics-toggle')).toHaveAttribute('aria-pressed','true')
+      const props=await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · 桌面歌词');return {top:w.isAlwaysOnTop(),frame:w.getMediaSourceId(),prefs:w.webContents.getLastWebPreferences()}})
+      await expect.poll(()=>app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · 桌面歌词').isAlwaysOnTop())).toBe(true);expect(props.prefs.nodeIntegration).toBe(false);expect(props.prefs.contextIsolation).toBe(true);expect(props.prefs.sandbox).toBe(true)
+      expect(await overlay.evaluate(()=>({cloud:typeof window.cloud,node:typeof require}))).toEqual({cloud:'undefined',node:'undefined'})
+      expect(await overlay.evaluate(()=>window.desktopLyrics.action('readFile'))).toBe(null)
+      expect((await page.evaluate(()=>window.cloud.desktopLyrics('yes'))).ok).toBe(false)
+    })
+    await check('歌词、翻译、暂停与拖动播放进度同步',async()=>{
+      await page.locator('.cover-card').first().click();await page.getByRole('button',{name:'播放 风经过的时候',exact:true}).click();await expect(overlay.locator('.current-line')).toHaveText('风经过的时候')
+      await page.getByRole('button',{name:'展开完整播放页'}).click()
+      await page.getByLabel('播放进度',{exact:true}).evaluate(el=>{el.value='5';el.dispatchEvent(new Event('change',{bubbles:true}))})
+      await expect(overlay.locator('.current-line')).toHaveText('把远方放在心里');await expect(overlay.locator('.translation')).toHaveText('Keep the distance in your heart');await expect(overlay.locator('.next-line')).toHaveText('生活慢下来')
+      await page.getByRole('button',{name:'暂停',exact:true}).click();await expect(overlay.locator('.pause-status')).toHaveText('已暂停')
+      await page.getByLabel('播放进度',{exact:true}).evaluate(el=>{el.value='40';el.dispatchEvent(new Event('change',{bubbles:true}))});await expect(overlay.locator('.current-line')).toHaveText('你和我，听见同一刻')
+      await overlay.screenshot({path:path.join(out,'桌面歌词-QA.png')})
+    })
+    await check('主窗口最小化仍同步，歌词窗拖动、缩放与字号保存',async()=>{
+      await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · CloudTogether').minimize())
+      await page.evaluate(()=>{window.__qaAudio.currentTime=70;window.__qaAudio.dispatchEvent(new Event('timeupdate'))});await expect(overlay.locator('.current-line')).toHaveText('故事，留在这首歌里')
+      const old=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · 桌面歌词').getBounds())
+      await overlay.locator('.drag-grip').hover();await overlay.mouse.down();await overlay.mouse.move(100,55,{steps:10});await overlay.mouse.up()
+      await expect.poll(()=>app.evaluate(({BrowserWindow},previous)=>{const b=BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · 桌面歌词').getBounds();return b.x!==previous.x||b.y!==previous.y},old)).toBe(true)
+      await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · 桌面歌词').setSize(540,192));await expect.poll(()=>overlay.evaluate(()=>innerWidth)).toBe(540)
+      await overlay.getByRole('button',{name:'放大歌词字号'}).click();await expect(overlay.locator('.desktop-lyrics')).toHaveAttribute('style',/30px/)
+      await overlay.getByRole('button',{name:'返回播放器'}).click();await expect.poll(()=>app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · CloudTogether').isMinimized())).toBe(false)
+    })
+    await check('关闭与重开状态一致，无歌词与晚返回旧歌词不残留',async()=>{
+      await overlay.getByRole('button',{name:'关闭桌面歌词'}).click();await expect(page.getByRole('button',{name:'开启桌面歌词',exact:true})).toBeVisible()
+      expect(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · 桌面歌词').isVisible())).toBe(false)
+      await page.getByRole('button',{name:'开启桌面歌词',exact:true}).click();expect(app.windows().length).toBe(2)
+      await page.getByRole('button',{name:'收起播放页'}).click();await page.getByRole('button',{name:'云伴首页'}).click();await page.locator('.cover-card').first().click()
+      api.setLyrics(102,'');await page.getByRole('button',{name:'播放 一封没有寄出的信',exact:true}).click();await expect(overlay.locator('.current-line')).toHaveText('暂无歌词，继续欣赏音乐');await expect(overlay.locator('.translation')).toHaveCount(0)
+      api.setLyrics(103,'[00:00]旧歌词不应出现');api.setLyricDelay(103,1600);api.setLyrics(104,'[00:00]<script>纯文本歌词</script>')
+      await page.getByRole('button',{name:'播放 月亮落在窗台',exact:true}).click();await page.getByRole('button',{name:'播放 沿海公路',exact:true}).click();await expect(overlay.locator('.current-line')).toHaveText('<script>纯文本歌词</script>');await page.waitForTimeout(1800);await expect(overlay.locator('.current-line')).toHaveText('<script>纯文本歌词</script>')
+      expect(await overlay.locator('.current-line script').count()).toBe(0)
+    })
+    await check('重启恢复开关、字号和位置，关闭主窗口不会留下孤立歌词',async()=>{
+      await page.getByRole('button',{name:'关闭桌面歌词',exact:true}).click();await page.getByRole('button',{name:'开启桌面歌词',exact:true}).click()
+      await app.close();app=await launch();await expect.poll(()=>app.windows().length).toBe(2)
+      page=app.windows().find(p=>!p.url().includes('lyrics.html'));overlay=app.windows().find(p=>p.url().includes('lyrics.html'))
+      await expect(page.locator('.lyrics-toggle')).toHaveAttribute('aria-pressed','true');await expect(overlay.locator('.desktop-lyrics')).toHaveAttribute('style',/30px/);expect(await overlay.evaluate(()=>innerWidth)).toBe(540)
+      expect(JSON.parse(fs.readFileSync(path.join(profile,'desktop-lyrics.json'),'utf8')).enabled).toBe(true)
+      await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='云伴 · CloudTogether').close());await expect.poll(()=>app.windows().length).toBe(0)
+    })
+    expect(errors).toEqual([])
+  }catch(error){results.push({name:'desktop lyrics',passed:false,error:error.stack});throw error}
+  finally{await app?.close().catch(()=>{});api.server.close();fs.rmSync(profile,{recursive:true,force:true});fs.writeFileSync(path.join(out,'桌面歌词验收.json'),JSON.stringify({date:new Date().toISOString(),mode:process.env.CLOUD_PACKAGED?'packaged mock':'development mock',results,errors},null,2))}
+})().catch(error=>{console.error(error);process.exitCode=1})
