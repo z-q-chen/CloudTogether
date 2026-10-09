@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const { validate } = require('../shared/contracts.cjs')
+const { createAudioInitializer } = require('./audio-init.cjs')
 
 function cleanCookie(value) {
   const list = Array.isArray(value) ? value : String(value || '').split(/;;|;(?=\s*[\w-]+=)/)
@@ -59,6 +60,16 @@ class Service {
     if (!fs.existsSync(token)) fs.writeFileSync(token,'',{mode:0o600})
     const request = require(path.join(root,'util/request.js'))
     const { cookieToJson } = require(path.join(root,'util/index.js'))
+    if (method === 'song_url_v1') {
+      this.audioInitializer ||= createAudioInitializer({
+        file:path.join(os.tmpdir(),'xeapi_public_key'),
+        fetchKey:current => {
+          this.audioDeviceId ||= current.deviceId || cookieToJson(args.cookie || '').deviceId || require('node:crypto').randomUUID().replace(/-/g,'')
+          return require(path.join(root,'util/xeapiKey.js')).getXeapiPublicKey(current,this.audioDeviceId)
+        }
+      })
+      await this.audioInitializer()
+    }
     if(method==='listentogether_statistics') {
       // Official Android 9.6.05: relation statistics v2, connection times in seconds.
       const data={roomId:args.roomId||''}
@@ -67,7 +78,9 @@ class Service {
       return res.body
     }
     const module = require(path.join(root,'module',method+'.js'))
-    const res = await module({...args, cookie:cookieToJson(args.cookie || ''), timestamp:Date.now()},request)
+    const cookie = cookieToJson(args.cookie || '')
+    if (method === 'song_url_v1') cookie.deviceId = this.audioDeviceId
+    const res = await module({...args, cookie, timestamp:Date.now()},request)
     return res.body
   }
   async session() {

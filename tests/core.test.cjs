@@ -5,8 +5,29 @@ const os=require('node:os')
 const path=require('node:path')
 const {Service,cleanCookie,stripSecrets}=require('../src/main/service.cjs')
 const {validate}=require('../src/shared/contracts.cjs')
+const {createAudioInitializer}=require('../src/main/audio-init.cjs')
 const temp=()=>fs.mkdtempSync(path.join(os.tmpdir(),'cloud-core-'))
 const safeStorage={isEncryptionAvailable:()=>false}
+
+test('fresh audio startup registers one protocol key for simultaneous requests',async()=>{
+  const folder=temp(),file=path.join(folder,'audio-key');let requests=0,finish
+  const initialize=createAudioInitializer({file,fetchKey:()=>{requests++;return new Promise(resolve=>finish=resolve)}})
+  try {
+    const first=initialize(),second=initialize();assert.equal(requests,1)
+    finish({publicKey:'test-public',sk:'test-session',version:'1',deviceId:'test-device'})
+    await Promise.all([first,second]);await initialize();assert.equal(requests,1)
+    assert.equal(JSON.parse(fs.readFileSync(file)).deviceId,'test-device')
+    assert.equal(fs.statSync(file).mode&0o777,0o600)
+  }finally{fs.rmSync(folder,{recursive:true,force:true})}
+})
+test('failed audio registration can retry and does not leave a broken cache',async()=>{
+  const folder=temp(),file=path.join(folder,'audio-key');let requests=0
+  const initialize=createAudioInitializer({file,fetchKey:async()=>++requests===1?{}:{publicKey:'test-public',sk:'test-session',version:'1'}})
+  try {
+    await assert.rejects(initialize(),/初始化失败/);assert.equal(fs.existsSync(file),false)
+    await initialize();assert.equal(requests,2);assert.ok(fs.existsSync(file))
+  }finally{fs.rmSync(folder,{recursive:true,force:true})}
+})
 
 test('IPC allowlist blocks credentials, injection and arbitrary methods',()=>{
   for(const [method,args]of [['constructor',{}],['song_url_v1',{id:'1',level:'exhigh',cookie:'SECRET'}],['song_url_v1',{id:'1',level:'exhigh',unblock:true}],['song_detail',{ids:'1);process.exit()'}],['preferences',{theme:'unexpected'}],['listentogether_accept',{roomId:'../secrets',inviterId:'2'}]])assert.throws(()=>validate(method,args))

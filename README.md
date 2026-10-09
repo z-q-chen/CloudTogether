@@ -3,7 +3,7 @@
   <h1>云伴 · CloudTogether</h1>
   <p>音乐，有人作伴。</p>
   <p>连接网易云音乐的 Linux 桌面客户端。</p>
-  <p><a href="https://z-q-chen.github.io/cloudtogether/">产品官网</a> · <a href="https://github.com/z-q-chen/CloudTogether/releases/tag/v0.1.0">下载</a> · <a href="https://z-q-chen.github.io/articles/cloudtogether-010/">我的故事</a></p>
+  <p><a href="https://z-q-chen.github.io/cloudtogether/">产品官网</a> · <a href="https://github.com/z-q-chen/CloudTogether/releases/tag/v0.1.0">下载</a></p>
 </div>
 
 ![CloudTogether 发现页](docs/images/discover.webp)
