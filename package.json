@@ -3,7 +3,7 @@
   "productName": "云伴",
   "version": "0.1.0",
   "description": "独立编写的网易云音乐桌面客户端",
-  "author": "CloudTogether contributors",
+  "author": "ECHO <echo110326390@163.com>",
   "license": "MIT",
   "private": true,
   "main": "src/main/main.cjs",
@@ -13,7 +13,8 @@
     "test": "node --test --test-isolation=none tests/core.test.cjs",
     "test:desktop": "node tests/desktop.cjs",
     "test:lyrics": "node tests/lyrics.cjs",
-    "package": "node scripts/package.cjs"
+    "package": "node scripts/package.cjs",
+    "package:deb": "node scripts/package-deb.cjs"
   },
   "dependencies": {
     "@neteasecloudmusicapienhanced/api": "4.36.1",

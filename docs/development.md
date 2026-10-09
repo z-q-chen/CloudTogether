@@ -21,6 +21,7 @@ node tests/live.cjs
 
 ```sh
 npm run package
+npm run package:deb
 ```
 
 账号与偏好存储在系统应用数据目录的 `CloudTogether-Independent`，退出账号清除本机凭据。凭据在主进程保存，优先使用系统密钥环；不可用时退回仅当前用户可读的文件，并在设置中说明。

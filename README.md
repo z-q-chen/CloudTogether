@@ -3,7 +3,7 @@
   <h1>云伴 · CloudTogether</h1>
   <p>音乐，有人作伴。</p>
   <p>连接网易云音乐的 Linux 桌面客户端。</p>
-  <p><a href="https://z-q-chen.github.io/cloudtogether/">产品官网</a> · <a href="https://github.com/z-q-chen/CloudTogether/releases/tag/v0.1.0">下载</a> · <a href="https://z-q-chen.github.io/articles/cloudtogether-010/">设计手记</a></p>
+  <p><a href="https://z-q-chen.github.io/cloudtogether/">产品官网</a> · <a href="https://github.com/z-q-chen/CloudTogether/releases/tag/v0.1.0">下载</a> · <a href="https://z-q-chen.github.io/articles/cloudtogether-010/">我的故事</a></p>
 </div>
 
 ![CloudTogether 发现页](docs/images/discover.webp)
@@ -21,9 +21,16 @@
 
 适用于 **Ubuntu / Linux x86_64**。
 
-1. 下载 [Linux 压缩包](https://github.com/z-q-chen/CloudTogether/releases/download/v0.1.0/CloudTogether-0.1.0-linux-x64-compact.tar.gz) 并解压。
-2. 运行「启动云伴.sh」。
-3. 如需桌面入口，运行「安装到应用菜单.sh」。
+1. 下载 [Ubuntu .deb 安装包](https://github.com/z-q-chen/CloudTogether/releases/download/v0.1.0/cloudtogether_0.1.0_amd64.deb)。
+2. 安装后，从应用菜单打开「云伴」。
+
+也可在下载目录运行：
+
+```sh
+sudo apt install ./cloudtogether_0.1.0_amd64.deb
+```
+
+需要免安装版本时，下载 [便携版](https://github.com/z-q-chen/CloudTogether/releases/download/v0.1.0/CloudTogether-0.1.0-linux-x64-compact.tar.gz)，解压后运行「启动云伴.sh」。
 
 点击右上角头像登录；底栏的上箭头展开播放页，「词」开关桌面歌词。
 
