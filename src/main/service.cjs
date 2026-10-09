@@ -32,6 +32,7 @@ class Service {
       this.cookie = stored.encrypted ? safeStorage.decryptString(Buffer.from(stored.value,'base64')) : stored.value
     } catch {}
     try { Object.assign(this.preferences, validate('preferences',JSON.parse(fs.readFileSync(path.join(folder,'preferences.json'),'utf8')))) } catch {}
+    this.preferences.font = 'sans'
   }
   secure() { return this.safeStorage?.isEncryptionAvailable() && this.safeStorage.getSelectedStorageBackend?.() !== 'basic_text' }
   write(name, value) {
@@ -77,9 +78,16 @@ class Service {
       const res=await request('/api/listen/together/relation/statistics/get/v2',data,{crypto:'',cookie:cookieToJson(args.cookie||'')})
       return res.body
     }
-    const module = require(path.join(root,'module',method+'.js'))
     const cookie = cookieToJson(args.cookie || '')
-    if (method === 'song_url_v1') cookie.deviceId = this.audioDeviceId
+    if (method === 'song_url_v1') {
+      cookie.deviceId = this.audioDeviceId
+      const createOption = require(path.join(root,'util/option.js'))
+      const res = await request('/api/song/enhance/player/url/v1',
+        {ids:`[${args.id}]`,level:args.level,encodeType:'flac'},
+        createOption({cookie,timestamp:Date.now()},'xeapi'))
+      return res.body
+    }
+    const module = require(path.join(root,'module',method+'.js'))
     const res = await module({...args, cookie, timestamp:Date.now()},request)
     return res.body
   }
@@ -101,7 +109,7 @@ class Service {
     const epoch = this.epoch
     if (method === 'session') return this.session()
     if (method === 'preferences') {
-      Object.assign(this.preferences,args); this.write('preferences.json',this.preferences); return this.preferences
+      Object.assign(this.preferences,args,{font:'sans'}); this.write('preferences.json',this.preferences); return this.preferences
     }
     if (method === 'logout') {
       this.epoch++; this.qrKey=''; this.cookie=''; this.profile=null

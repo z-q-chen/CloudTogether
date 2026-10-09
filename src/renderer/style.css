@@ -1,5 +1,4 @@
 @font-face{font-family:CloudSans;src:url('../../assets/CloudSans.woff2') format('woff2');font-display:swap;font-weight:400 900}
-@font-face{font-family:CloudSerif;src:url('../../assets/CloudSerif.woff2') format('woff2');font-display:swap;font-weight:400 900}
 *{box-sizing:border-box}
 html,body,#app{margin:0;width:100%;height:100%;overflow:hidden}
 button,input,select{font:inherit}button{color:inherit;border:0;background:none;text-align:inherit;cursor:pointer;padding:0}
@@ -21,8 +20,6 @@ button{transition:background .16s,color .16s,box-shadow .16s}button:not(:disable
 .app[data-theme=rose]{--bg:#fbf6f7;--panel:#fffafb;--raised:#f1e8ec;--text:#392b34;--muted:#87727e;--faint:#a18d98;--accent:#b05377;--accent-text:#fff;--soft-accent:#f2dce6;--border:#e9dce3;--hero:#f2e9ee;--heart:#f4e0e8;--ink:#eee5f4;--ink-text:#836193}
 .app[data-theme=blue]{--bg:#f1f7fb;--panel:#fafdff;--raised:#e4eff7;--text:#1e3448;--muted:#5e7b92;--faint:#859eb0;--accent:#3f83b5;--accent-text:#fff;--soft-accent:#dbeaf6;--border:#d7e5ef;--hero:#e1edf5;--heart:#e1e9f4;--ink:#dceff1;--ink-text:#467d87}
 .app[data-theme=amber]{--bg:#211c18;--panel:#2c241e;--raised:#392f26;--text:#f6ead9;--muted:#bba58e;--faint:#967f69;--accent:#e1b273;--accent-text:#292019;--soft-accent:#483727;--border:#47392d;--hero:#3a3024;--heart:#413027;--ink:#35382c;--ink-text:#c2c8a2;--shadow:#0003;--danger:#f6a18e;--success:#bace97;color-scheme:dark}
-.app[data-font=serif]{font-family:CloudSerif,'Noto Serif CJK SC',serif}
-.app[data-font=serif] input,.app[data-font=serif] select,.mini-progress,.player-progress{font-family:CloudSans,sans-serif}
 .eyebrow{font-size:12px;font-weight:500;color:var(--muted);line-height:1.5}
 .icon-button{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);flex-shrink:0}
 .icon-button:hover:not(:disabled){background:var(--raised);color:var(--text)}.icon-button.active{color:var(--accent);background:var(--soft-accent)}

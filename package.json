@@ -13,7 +13,7 @@
     "test": "node --test --test-isolation=none tests/core.test.cjs",
     "test:desktop": "node tests/desktop.cjs",
     "test:lyrics": "node tests/lyrics.cjs",
-    "package": "node scripts/package.cjs",
+    "package": "node scripts/package.cjs --runtime-only",
     "package:deb": "node scripts/package-deb.cjs"
   },
   "dependencies": {

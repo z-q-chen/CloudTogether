@@ -61,12 +61,12 @@ const check=async(name,fn)=>{await fn();results.push({name,status:'passed'});con
       await page.getByRole('button',{name:'打开播放列表',exact:true}).click();await expect(page.getByRole('dialog',{name:'播放列表',exact:true})).toBeVisible();await expect(page.locator('.queue-row')).toHaveCount(3);await expect(page.locator('.queue-row .recommend-label')).toHaveCount(2)
       await page.screenshot({path:path.join(out,'04-心动队列-QA.png')});await page.keyboard.press('Escape')
     })
-    await check('六款皮肤、字体切换与持久化偏好',async()=>{
+    await check('六款皮肤、统一字体与持久化偏好',async()=>{
       await page.getByRole('button',{name:'更换皮肤',exact:true}).click();await expect(page.locator('.theme-grid>button')).toHaveCount(6)
       for(const [id,name]of [['ink','夜航'],['forest','苔原'],['rose','玫瑰灰'],['blue','海盐'],['amber','琥珀']]) {await page.getByRole('button',{name:name+'皮肤',exact:true}).click();await expect(page.locator('.app')).toHaveAttribute('data-theme',id)}
-      await page.locator('.setting-row select').selectOption('serif');await expect(page.locator('.app')).toHaveAttribute('data-font','serif');await page.keyboard.press('Escape');await page.screenshot({path:path.join(out,'05-琥珀播放页-QA.png')})
-      const prefs=JSON.parse(fs.readFileSync(path.join(profile,'preferences.json'),'utf8'));expect(prefs.theme).toBe('amber');expect(prefs.font).toBe('serif')
-      await page.getByRole('button',{name:'更换皮肤',exact:true}).click();await page.getByRole('button',{name:'唱片纸皮肤',exact:true}).click();await page.locator('.setting-row select').selectOption('sans');await page.keyboard.press('Escape')
+      await expect(page.locator('.setting-row select')).toHaveCount(0);await expect(page.locator('.app')).toHaveAttribute('data-font','sans');await page.keyboard.press('Escape');await page.screenshot({path:path.join(out,'05-琥珀播放页-QA.png')})
+      const prefs=JSON.parse(fs.readFileSync(path.join(profile,'preferences.json'),'utf8'));expect(prefs.theme).toBe('amber');expect(prefs.font).toBe('sans')
+      await page.getByRole('button',{name:'更换皮肤',exact:true}).click();await page.getByRole('button',{name:'唱片纸皮肤',exact:true}).click();await page.keyboard.press('Escape')
     })
     await check('搜索、榜单、新碟与听书节目入口能播放',async()=>{
       await page.getByRole('button',{name:'收起播放页',exact:true}).click();await page.getByLabel('搜索音乐',{exact:true}).fill('风');await page.getByLabel('搜索音乐',{exact:true}).press('Enter');await expect(page.getByRole('heading',{name:'“风”的搜索结果'})).toBeVisible();await expect(page.locator('.track-row')).toHaveCount(3)
