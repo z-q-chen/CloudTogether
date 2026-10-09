@@ -3,6 +3,11 @@ const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const { createDesktopLyrics } = require('./desktop-lyrics.cjs')
 const { Service, stripSecrets } = require('./service.cjs')
+// Linux window identity must match the installed desktop entry.
+if (process.platform === 'linux') {
+  app.setName('cloudtogether')
+  app.setDesktopName('cloudtogether.desktop')
+}
 for(const level of ['log','info','warn','error']){const original=console[level].bind(console);console[level]=(...values)=>original(...values.map(value=>typeof value==='string'?value.replace(/(MUSIC_U|MUSIC_A|__csrf|NMTID)=[^;\s]+/gi,'$1=[redacted]'):stripSecrets(value)))}
 let win
 const qa = process.argv.includes('--qa')
