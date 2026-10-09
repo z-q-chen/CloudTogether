@@ -21,7 +21,7 @@
 
 适用于 **Ubuntu / Linux x86_64**。
 
-1. 在 [发行页](https://github.com/z-q-chen/CloudTogether/releases/tag/v0.1.0) 下载 Linux 压缩包并解压。
+1. 下载 [Linux 压缩包](https://github.com/z-q-chen/CloudTogether/releases/download/v0.1.0/CloudTogether-0.1.0-linux-x64-compact.tar.gz) 并解压。
 2. 运行「启动云伴.sh」。
 3. 如需桌面入口，运行「安装到应用菜单.sh」。
 
