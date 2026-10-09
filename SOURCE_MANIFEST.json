@@ -26,7 +26,7 @@
     "package-lock.json": "effd1674be88576000eb09024857589aad2c3edc0fbf3ea751f0dc90133814a1",
     "package.json": "671061b18a3c5a4e10e3f0199bfa198794595ba5a68840ea61bfffd4c732dbc9",
     "runtime-dependencies.json": "1509a06863ba7432cc905ed0cb25ced0200eac4ef0b81d48e13fee0034c9d9c9",
-    "scripts/package.cjs": "d349cfe03d8eece44a5ed5f3f657bd0a14067ebdeb547b64b679179b953ce315",
+    "scripts/package.cjs": "3a161c532583917e53206b63205b2b7c8dc24afb6a0cb4c2712825ef543ee5e2",
     "src/main/desktop-lyrics.cjs": "8a0912bebbbb897c52c829fbf2023dfdfc289a6963074b48e622a6f43c788e43",
     "src/main/lyrics-preload.cjs": "7426c826f5ad2ba7e0a1c079eff14442b73b5730764fb5ec4b5bcbbafbce988c",
     "src/main/main.cjs": "a2ad2f885575f31b58b194905d0a62d64f7b09c85a161c30843656deec231dd0",

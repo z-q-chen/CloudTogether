@@ -15,7 +15,11 @@ function copyPackage(name,parentFile=path.join(root,'package.json')) {
   if(relative.startsWith('..'))throw new Error('Dependency outside node_modules: '+name)
   const to=path.join(stage,'node_modules',relative)
   fs.mkdirSync(path.dirname(to),{recursive:true})
-  fs.cpSync(from,to,{recursive:true,filter:file=>file===from||(!path.relative(from,file).split(path.sep).some(part=>['node_modules','.git','test','tests','example','examples'].includes(part)))})
+  fs.cpSync(from,to,{recursive:true,filter:file=>{
+    const parts=path.relative(from,file).split(path.sep)
+    // The API adapter's website and docs are not used by the desktop client.
+    return file===from||(!parts.some(part=>['node_modules','.git','test','tests','example','examples'].includes(part))&&!(name==='@neteasecloudmusicapienhanced/api'&&parts[0]==='public'))
+  }})
   const pkg=JSON.parse(fs.readFileSync(entry,'utf8'))
   licenses.push({name:pkg.name,version:pkg.version,license:pkg.license||'See package license'})
   for(const dep of Object.keys(pkg.dependencies||{}))copyPackage(dep,entry)
@@ -39,6 +43,10 @@ function copyPackage(name,parentFile=path.join(root,'package.json')) {
   fs.writeFileSync(path.join(out,'第三方依赖清单.json'),JSON.stringify(licenses.sort((a,b)=>a.name.localeCompare(b.name)),null,2))
   for(const name of ['LICENSE','THIRD_PARTY_NOTICES.md'])if(fs.existsSync(path.join(root,name)))fs.copyFileSync(path.join(root,name),path.join(stage,name))
   fs.cpSync(path.join(modules,'electron/dist'),runtime,{recursive:true})
+  // The app UI is Chinese; keep Chinese resources and English fallbacks.
+  for(const locale of fs.readdirSync(path.join(runtime,'locales'))){
+    if(!['zh-CN.pak','zh-TW.pak','en-US.pak','en-GB.pak'].includes(locale))fs.unlinkSync(path.join(runtime,'locales',locale))
+  }
   fs.renameSync(path.join(runtime,'electron'),path.join(runtime,'cloudtogether'))
   fs.unlinkSync(path.join(runtime,'resources/default_app.asar'))
   await asar.createPackage(stage,path.join(runtime,'resources/app.asar'))
@@ -47,7 +55,7 @@ function copyPackage(name,parentFile=path.join(root,'package.json')) {
   const builder=path.join(modules,'app-builder-bin/linux/x64/app-builder')
   const image=path.join(out,`CloudTogether-${pkg.version}.AppImage`)
   const imageStage=path.join(work,'appimage');fs.mkdirSync(imageStage,{recursive:true})
-  execFileSync(builder,['appimage','--stage',imageStage,'--arch','x64','--output',image,'--app',runtime,'--configuration',JSON.stringify({productName:'云伴',productFilename:'cloudtogether',executableName:'cloudtogether',desktopEntry:'[Desktop Entry]\nType=Application\nName=云伴\nComment='+pkg.description+'\nExec=AppRun %U\nIcon=cloudtogether\nCategories=Audio;Music;Player;\nTerminal=false\n',icons:[{file:path.join(root,'assets/icon.png'),size:512}],fileAssociations:[]})],{stdio:'inherit',env:{...process.env,ELECTRON_BUILDER_CACHE:process.env.ELECTRON_BUILDER_CACHE||path.resolve(root,'../../work/electron-builder-cache')}})
+  execFileSync(builder,['appimage','--stage',imageStage,'--arch','x64','--output',image,'--compression','xz','--app',runtime,'--configuration',JSON.stringify({productName:'云伴',productFilename:'cloudtogether',executableName:'cloudtogether',desktopEntry:'[Desktop Entry]\nType=Application\nName=云伴\nComment='+pkg.description+'\nExec=AppRun %U\nIcon=cloudtogether\nCategories=Audio;Music;Player;\nTerminal=false\n',icons:[{file:path.join(root,'assets/icon.png'),size:512}],fileAssociations:[]})],{stdio:'inherit',env:{...process.env,ELECTRON_BUILDER_CACHE:process.env.ELECTRON_BUILDER_CACHE||path.resolve(root,'../../work/electron-builder-cache')}})
   fs.chmodSync(image,0o755)
   console.log('Packaged',image,'runtime dependencies',copied.size)
 })().catch(e=>{console.error(e);process.exitCode=1})
