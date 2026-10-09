@@ -17,24 +17,13 @@
 - **随心播放**：底部播放栏与完整播放页，自动联播、单曲循环、随机与心动推荐。
 - **换一种颜色**：六款皮肤，思源黑体与思源宋体。
 
-## 下载
+## 安装
 
-适用于 **Ubuntu / Linux x86_64**。
-
-1. 下载 [Ubuntu .deb 安装包](https://github.com/z-q-chen/CloudTogether/releases/download/v0.1.0/cloudtogether_0.1.0_amd64.deb)。
-2. 安装后，从应用菜单打开「云伴」。
-
-也可在下载目录运行：
+Ubuntu / Linux x86_64：
 
 ```sh
-sudo apt install ./cloudtogether_0.1.0_amd64.deb
+curl -fL https://github.com/z-q-chen/CloudTogether/releases/download/v0.1.0/cloudtogether_0.1.0_amd64.deb -o cloudtogether.deb && sudo apt install -y ./cloudtogether.deb
 ```
-
-需要免安装版本时，下载 [便携版](https://github.com/z-q-chen/CloudTogether/releases/download/v0.1.0/CloudTogether-0.1.0-linux-x64-compact.tar.gz)，解压后运行「启动云伴.sh」。
-
-点击右上角头像登录；底栏的上箭头展开播放页，「词」开关桌面歌词。
-
-一起听为试用功能，手机端兼容性仍待确认；会员音源和账号写入的支持仍需完善。
 
 ## 参与
 
