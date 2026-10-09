@@ -2,7 +2,6 @@
 
 本版本的 src/、界面样式、图标、唱片插画、构建脚本和测试为此次独立编写。
 没有复制 VutronMusic、Vutron、YesPlayMusic 或 music-party 的应用源码。
-旧版本保留在原项目目录，新版未覆盖旧文件、账号数据或安装包。
 
 ## 网易云接口
 
@@ -16,7 +15,7 @@
 
 ## 框架与工具
 
-Electron、Vue、Vite、Zod、QRCode、Sharp、Playwright、electron/asar、app-builder-bin 以及它们的依赖分别受其原许可约束。运行包内保留依赖的 LICENSE/COPYING/版权文件与 Electron 的 LICENSES.chromium.html。构建产生的第三方依赖清单记录确切版本。
+Electron、Vue、Vite、Zod、QRCode、Sharp、Playwright、electron/asar 以及它们的依赖分别受其原许可约束。运行包内保留依赖的 LICENSE/COPYING/版权文件与 Electron 的 LICENSES.chromium.html。构建产生的第三方依赖清单记录确切版本。
 
 ## 字体
 

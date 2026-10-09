@@ -6,7 +6,7 @@
     "CHANGELOG.md": "1068b39c8937f56f8fac0610f768eb7521438c703a899a6921e3da31b5e57b5a",
     "LICENSE": "63539761bb9783b56b48876e7f7139b1d0128495616b7f61c4b004006f17275d",
     "README.md": "eb759ed2fa9a4cadafc0acc023c481506789af8150c944937992a83cf64139c9",
-    "THIRD_PARTY_NOTICES.md": "820957089214271437cdaa193727afaf80aaeccfdc851563e28003c85598763a",
+    "THIRD_PARTY_NOTICES.md": "a4eae45dc3900109d99a0b0be7963aa4cafae60ae966e0d4fb637cd173070d51",
     "assets/CloudSans.woff2": "c5f562fcde95f656b2df49fa9579d6f5e18b96f34d240a496fdc23260ad5c038",
     "assets/FONT-LICENSE.txt": "849f4ea9c214fa4ac3593b770c699f387534b11ce671264c1b10d85bdcb5997b",
     "assets/brand-mark.svg": "07a5efa01e8ced0c1c593722eb46b9450a8a9b9cfb0335980eef0fa25203109c",
@@ -22,11 +22,11 @@
     "docs/architecture.md": "dbb40ec963acad92ada183d19e86601bf564ffc5d3fc40c9046744369b3eb5dc",
     "docs/development.md": "5df2adffed205161cc11c4b4e2abbb4ea350094db07b65e230259e2ef2be81e0",
     "docs/images/discover.webp": "ee968b9f27ebcae2a9291849255b96440141d66726ca379988a858dbf077e55b",
-    "package-lock.json": "effd1674be88576000eb09024857589aad2c3edc0fbf3ea751f0dc90133814a1",
-    "package.json": "302fedb953c2935ebcfc0f0f0c4bf0f9d54587a494f0d5d3423785ebafef35c2",
+    "package-lock.json": "e5286d48db1855bb5829b58ae652239196971de824582c6497475cabc50ccb5f",
+    "package.json": "ad1cb5540ca6a3c28ba250ae341ae7d5a377ef5a28f747687d22710d4104f2f7",
     "runtime-dependencies.json": "54e485991d46e42f318a72b0d94b7ab82cd4cd52cc2e59cbc1a6813f8323c616",
     "scripts/package-deb.cjs": "676f2ad23345752cc5ffec8edbdade0c67cf403dabebbd445267655b05b21b71",
-    "scripts/package.cjs": "dad22bff119490fcd913915c4e1162d4de0d0fc2d755a1fa03f71a54e95c5e6d",
+    "scripts/package.cjs": "d4b5a8eaa271b97da8c107ba572517403047cdcdfde914eb63ce48cb1a6015d0",
     "src/main/audio-init.cjs": "9d6b5ee076c134e834601f9b5b0adf66347780e0fde5287e03d2746056c4aca2",
     "src/main/desktop-lyrics.cjs": "8a0912bebbbb897c52c829fbf2023dfdfc289a6963074b48e622a6f43c788e43",
     "src/main/lyrics-preload.cjs": "7426c826f5ad2ba7e0a1c079eff14442b73b5730764fb5ec4b5bcbbafbce988c",
@@ -57,8 +57,6 @@
     "tests/fixture.cjs": "66d92dcc841b465204f306661bc76cf5821e8b074c9dcc9ab88870def037658c",
     "tests/live.cjs": "c147a318e89c3a67b813c2ce44df862ed409dfd87a8e0c3f71db159a107ed019",
     "tests/lyrics.cjs": "e620834600c9a08dfdfb506068903305f68e1d851023528891917408e441d965",
-    "vite.config.mjs": "99f8438563f90f257dc4ab316e7afa38000892f612b4ab20226efa12b17e73c0",
-    "启动云伴.sh": "ae6f38fbad2ce618874e19fde9131652bb2be79d99d04845b9f3fbdf56f9f3a2",
-    "安装到应用菜单.sh": "e5d62196e65a73195d65d6dd925b4d56e036042ad0c48bbb65a26b76136a4038"
+    "vite.config.mjs": "99f8438563f90f257dc4ab316e7afa38000892f612b4ab20226efa12b17e73c0"
   }
 }

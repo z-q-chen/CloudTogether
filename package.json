@@ -13,7 +13,7 @@
     "test": "node --test --test-isolation=none tests/core.test.cjs",
     "test:desktop": "node tests/desktop.cjs",
     "test:lyrics": "node tests/lyrics.cjs",
-    "package": "node scripts/package.cjs --runtime-only",
+    "package": "node scripts/package.cjs",
     "package:deb": "node scripts/package-deb.cjs"
   },
   "dependencies": {
@@ -29,7 +29,6 @@
     "playwright": "1.54.1",
     "sharp": "0.34.3",
     "@playwright/test": "1.54.1",
-    "@electron/asar": "3.4.1",
-    "app-builder-bin": "5.0.0-alpha.12"
+    "@electron/asar": "3.4.1"
   }
 }
