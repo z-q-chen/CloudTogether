@@ -1,11 +1,12 @@
 import { reactive, computed, watch } from 'vue'
+import { RoomCommands } from './room-sync.mjs'
 import { track, playlist, program, parseLyrics, invitation, Shuffle, roomMembers, recommendationBatch, togetherTotal, formatTogetherTotal } from './domain.mjs'
 
 export const state = reactive({
   page:'discover',tab:'推荐',profile:null,prefs:{theme:'ink',quality:'exhigh',volume:0.7,font:'sans'},storage:'',
   discover:{playlists:[],charts:[],albums:[],radios:[],programs:[],loading:true,errors:{},pool:[],category:'全部',offset:0,updatedAt:0,notice:''},
-  mine:{playlists:[],likes:[],likedTracks:[],loading:false,error:'',loaded:0,more:false},
-  detail:{title:'',cover:'',description:'',creator:'',tracks:[],id:'',kind:'playlist',total:0,loading:false,error:'',more:false},
+  mine:{playlists:[],likes:[],likedTracks:[],loading:false,error:'',loaded:0,more:false,paging:false},
+  detail:{title:'',cover:'',description:'',creator:'',tracks:[],id:'',kind:'playlist',total:0,loading:false,error:'',more:false,paging:false},
   search:{query:'',type:1,tracks:[],cards:[],loading:false,error:'',more:false,offset:0,total:0},
   queue:[],current:null,source:{id:'0',title:''},mode:'sequence',playing:false,loading:false,progress:0,duration:0,lyrics:[],lyricLoading:false,error:'',history:[],
   modal:'',toast:'',toastKind:'info',queueOpen:false,login:{key:'',image:'',message:'',busy:false},
@@ -17,10 +18,11 @@ let toastTimer, loginTimer, roomTimer, sleepTimer
 const discoverVersions=new Map(),portraitRequests=new Set()
 let discoverPending=0
 let statsEpoch=0,statsBusy=false
-let accountEpoch=0, detailEpoch=0, searchEpoch=0, audioEpoch=0, roomEpoch=0
+let accountEpoch=0, detailEpoch=0, searchEpoch=0, audioEpoch=0, roomEpoch=0, loginEpoch=0
+let pendingRoomPause=null, queuePageRequest=null
 let pollBusy=false, roomTail=Promise.resolve(), remoteApplying=false, desiredPlaying=false, listenTime=0
-let lastTime=0, likeBusy=new Set(), historyStack=[], roomFingerprint='', roomRevision=0, lastLocalRoomWrite=null
-const shuffle=new Shuffle()
+let lastTime=0, likeBusy=new Set(), historyStack=[], roomRevision=0
+const shuffle=new Shuffle(),roomCommands=new RoomCommands()
 export const audio=new Audio()
 audio.preload='auto'; audio.volume=state.prefs.volume
 export const currentLiked=computed(()=>state.current&&!state.current.program&&state.mine.likes.includes(state.current.id))
@@ -120,7 +122,7 @@ export async function refreshDiscover(tab=state.tab,cat=state.discover.category)
   toast(state.discover.notice,state.discover.errors[key]?'error':'info')
 }
 function resetAccount() {
-  state.mine={playlists:[],likes:[],likedTracks:[],loading:false,error:'',loaded:0,more:false}
+  state.mine={playlists:[],likes:[],likedTracks:[],loading:false,error:'',loaded:0,more:false,paging:false}
   stopRoom();state.togetherStats={peerId:'',peerName:'',totalSeconds:null,loading:false,error:'',updatedAt:0,attemptedAt:0};if(state.mode==='heart')state.mode='sequence'
 }
 export async function loadMine() {
@@ -139,10 +141,14 @@ export async function loadMine() {
   if(epoch===accountEpoch){state.mine.loaded=Date.now();state.mine.loading=false}
 }
 export async function moreMine() {
-  const epoch=accountEpoch
-  const r=await call('user_playlist',{uid:String(state.profile.userId),limit:1000,offset:state.mine.playlists.length})
-  if(epoch!==accountEpoch)return
-  state.mine.playlists.push(...(r.playlist||[]).map(p=>playlist(p)));state.mine.more=!!r.more
+  const mine=state.mine
+  if(!state.profile||mine.loading||mine.paging||!mine.more)return
+  const epoch=accountEpoch,uid=String(state.profile.userId);mine.paging=true
+  try {
+    const r=await call('user_playlist',{uid,limit:1000,offset:mine.playlists.length})
+    if(epoch!==accountEpoch||mine!==state.mine)return
+    mine.playlists.push(...(r.playlist||[]).map(p=>playlist(p)));mine.more=!!r.more
+  }finally{mine.paging=false}
 }
 export async function like(t=state.current) {
   if(!state.profile){await login();return}
@@ -160,11 +166,11 @@ export async function like(t=state.current) {
 export async function logout() {
   await call('logout');accountEpoch++;state.profile=null;resetAccount();state.modal='';stopLogin();toast('已退出账号');await loadDiscover()
 }
-function stopLogin(){clearTimeout(loginTimer);state.login.key='';state.login.busy=false}
+function stopLogin(){++loginEpoch;clearTimeout(loginTimer);state.login.key='';state.login.busy=false}
 export async function login() {
-  state.modal='login';stopLogin();state.login={key:'',image:'',message:'正在生成二维码…',busy:true}
+  state.modal='login';stopLogin();const generation=loginEpoch;state.login={key:'',image:'',message:'正在生成二维码…',busy:true}
   try {
-    const qr=await call('qr');if(state.modal!=='login')return
+    const qr=await call('qr');if(state.modal!=='login'||generation!==loginEpoch)return
     Object.assign(state.login,{...qr,message:'打开网易云音乐，扫一扫',busy:false})
     const poll=async()=> {
       const key=state.login.key;if(!key||state.modal!=='login')return
@@ -177,11 +183,11 @@ export async function login() {
       } catch(e){if(key===state.login.key)state.login.message=e.message}
       if(key===state.login.key&&state.modal==='login')loginTimer=setTimeout(poll,1800)
     };loginTimer=setTimeout(poll,1600)
-  }catch(e){state.login.message=e.message;state.login.busy=false}
+  }catch(e){if(generation===loginEpoch){state.login.message=e.message;state.login.busy=false}}
 }
 export function closeModal(){state.modal='';stopLogin()}
 export async function openCard(p) {
-  const epoch=++detailEpoch
+  const epoch=++detailEpoch;state.detail.paging=false
   Object.assign(state.detail,{title:p.name,cover:p.cover,description:p.description,creator:p.creator,tracks:[],id:p.id,kind:p.kind,total:p.count||0,loading:true,error:'',more:false})
   navigate('detail')
   try {
@@ -198,23 +204,33 @@ export async function openCard(p) {
   }catch(e){if(epoch===detailEpoch)state.detail.error=e.message}finally{if(epoch===detailEpoch)state.detail.loading=false}
 }
 export async function moreDetail() {
-  const epoch=detailEpoch,d=state.detail
-  const r=await call(d.kind==='radio'?'dj_program':'playlist_track_all',d.kind==='radio'?{rid:d.id,limit:200,offset:d.tracks.length}:{id:d.id,limit:200,offset:d.tracks.length})
-  if(epoch!==detailEpoch)return
-  d.tracks.push(...(d.kind==='radio'?(r.programs||[]).map(program):(r.songs||[]).map(track)))
-  d.more=d.tracks.length<d.total
+  const epoch=detailEpoch,d=state.detail,account=accountEpoch
+  if(d.loading||d.paging||!d.more)return
+  d.paging=true
+  try {
+    const r=await call(d.kind==='radio'?'dj_program':'playlist_track_all',d.kind==='radio'?{rid:d.id,limit:200,offset:d.tracks.length}:{id:d.id,limit:200,offset:d.tracks.length})
+    if(epoch!==detailEpoch||account!==accountEpoch)return
+    d.tracks.push(...(d.kind==='radio'?(r.programs||[]).map(program):(r.songs||[]).map(track)))
+    d.more=d.kind==='radio'?!!r.more:d.tracks.length<d.total
+  }finally{if(epoch===detailEpoch)d.paging=false}
 }
 export function showLikes() {
   if(!state.profile)return login()
   const liked=state.mine.playlists.find(p=>p.owner===String(state.profile?.userId)&&(/喜欢/.test(p.name))) || state.mine.playlists.find(p=>p.owner===String(state.profile?.userId))
   if(liked)return openCard(liked)
-  ++detailEpoch;Object.assign(state.detail,{title:'我喜欢的音乐',cover:'',description:'同步自网易云账号',creator:state.profile?.nickname||'',tracks:[...state.mine.likedTracks],id:'0',kind:'likes',total:state.mine.likes.length,loading:false,error:state.mine.error,more:state.mine.likedTracks.length<state.mine.likes.length});navigate('detail')
+  ++detailEpoch;state.detail.paging=false;Object.assign(state.detail,{title:'我喜欢的音乐',cover:'',description:'同步自网易云账号',creator:state.profile?.nickname||'',tracks:[...state.mine.likedTracks],id:'0',kind:'likes',total:state.mine.likes.length,loading:false,error:state.mine.error,more:state.mine.likedTracks.length<state.mine.likes.length});navigate('detail')
 }
 export async function moreLikes() {
-  const epoch=accountEpoch,ids=state.mine.likes.slice(state.detail.tracks.length,state.detail.tracks.length+100)
+  const d=state.detail,epoch=accountEpoch,detail=detailEpoch
+  if(d.kind!=='likes'||d.loading||d.paging||!d.more)return
+  const ids=state.mine.likes.slice(d.tracks.length,d.tracks.length+100)
   if(!ids.length)return
-  const r=await call('song_detail',{ids:ids.join(',')});if(epoch!==accountEpoch||state.detail.kind!=='likes')return
-  state.detail.tracks.push(...(r.songs||[]).map(track));state.detail.more=state.detail.tracks.length<state.mine.likes.length
+  d.paging=true
+  try {
+    const r=await call('song_detail',{ids:ids.join(',')})
+    if(epoch!==accountEpoch||detail!==detailEpoch)return
+    d.tracks.push(...(r.songs||[]).map(track));d.more=d.tracks.length<state.mine.likes.length
+  }finally{if(detail===detailEpoch)d.paging=false}
 }
 export async function search(type=state.search.type,more=false) {
   const keywords=state.search.query.trim();if(!keywords)return
@@ -234,7 +250,7 @@ export async function search(type=state.search.type,more=false) {
   }catch(e){if(epoch===searchEpoch)state.search.error=e.message}finally{if(epoch===searchEpoch)state.search.loading=false}
 }
 export async function openArtist(p) {
-  const epoch=++detailEpoch;Object.assign(state.detail,{title:p.name,cover:p.cover,tracks:[],kind:'artist',id:p.id,total:0,description:'热门歌曲',creator:'',loading:true,error:'',more:false});navigate('detail')
+  const epoch=++detailEpoch;state.detail.paging=false;Object.assign(state.detail,{title:p.name,cover:p.cover,tracks:[],kind:'artist',id:p.id,total:0,description:'热门歌曲',creator:'',loading:true,error:'',more:false});navigate('detail')
   try{const r=await call('artists',{id:p.id});if(epoch===detailEpoch){state.detail.tracks=(r.hotSongs||[]).map(track);state.detail.total=state.detail.tracks.length}}
   catch(e){if(epoch===detailEpoch)state.detail.error=e.message}finally{if(epoch===detailEpoch)state.detail.loading=false}
 }
@@ -242,7 +258,7 @@ export async function daily() {
   if(!state.profile)return login()
   const r=await call('recommend_songs');const rows=(r.data?.dailySongs||r.recommend||[]).map(track)
   if(!rows.length)throw new Error('今天暂时没有推荐歌曲')
-  ++detailEpoch;Object.assign(state.detail,{title:'每日推荐',cover:rows[0].album.cover,tracks:rows,kind:'daily',id:'0',total:rows.length,description:'每天更新，只为你的听歌口味。',creator:state.profile.nickname,loading:false,error:'',more:false});navigate('detail')
+  ++detailEpoch;state.detail.paging=false;Object.assign(state.detail,{title:'每日推荐',cover:rows[0].album.cover,tracks:rows,kind:'daily',id:'0',total:rows.length,description:'每天更新，只为你的听歌口味。',creator:state.profile.nickname,loading:false,error:'',more:false});navigate('detail')
 }
 function scrobble() {
   if(state.profile&&state.current&&!state.current.program&&listenTime>=30)call('scrobble',{id:state.current.id,sourceid:state.source.id,time:Math.floor(listenTime)}).catch(()=>{})
@@ -283,11 +299,12 @@ export async function play(t,rows=null,source=null) {
 export async function toggle() {
   if(remoteApplying)throw new Error('正在同步听友的播放，请稍候')
   if(!state.current)return toast('先选一首喜欢的音乐')
-  if(state.room.id&&!state.room.connected)throw new Error('一起听正在重连，请稍候')
+  if(state.room.id&&!state.room.connected&&!(state.loading?desiredPlaying:state.playing))throw new Error('一起听正在重连，请稍候')
   desiredPlaying=state.loading?!desiredPlaying:!state.playing
   if(state.loading){if(!desiredPlaying)audio.pause();return}
   if(desiredPlaying){if(state.error)return loadTrack(state.current);await audio.play()}else audio.pause()
   await sendCommand(desiredPlaying?'PLAY':'PAUSE')
+  if(state.room.id&&!state.room.connected)toast('已暂停，连接恢复后同步给听友')
 }
 export async function seek(seconds,remote=false) {
   if(!state.current||state.loading||!Number.isFinite(audio.duration))return
@@ -314,15 +331,21 @@ export async function setMode(mode) {
   state.mode=mode
 }
 export async function next(ended=false) {
+  if(remoteApplying)throw new Error('正在同步听友的播放，请稍候')
+  if(state.room.id&&!state.room.connected)throw new Error('一起听正在重连，请稍候')
   if(!state.current)return
   if(ended&&state.mode==='repeat'){audio.currentTime=0;await audio.play();await sendCommand('GOTO');return}
   let target
   if(state.mode==='shuffle'){const id=shuffle.next(state.queue,state.current.id);target=state.queue.find(t=>t.id===id)}
   else {const index=state.queue.findIndex(t=>t.id===state.current.id);target=state.queue[index+1]}
   if(!target&&['playlist','radio'].includes(state.source.kind)&&state.queue.length<state.source.total&&!state.room.id) {
-    const epoch=audioEpoch,source=state.source
-    const r=await call(source.kind==='radio'?'dj_program':'playlist_track_all',source.kind==='radio'?{rid:source.id,offset:state.queue.length,limit:200}:{id:source.id,offset:state.queue.length,limit:200})
-    if(epoch!==audioEpoch||source!==state.source)return
+    const epoch=audioEpoch,source=state.source,offset=state.queue.length
+    if(queuePageRequest?.source===source&&queuePageRequest.epoch===epoch)return
+    const pending={source,epoch};queuePageRequest=pending
+    let r
+    try {r=await call(source.kind==='radio'?'dj_program':'playlist_track_all',source.kind==='radio'?{rid:source.id,offset,limit:200}:{id:source.id,offset,limit:200})}
+    finally{if(queuePageRequest===pending)queuePageRequest=null}
+    if(epoch!==audioEpoch||source!==state.source||offset!==state.queue.length)return
     const rows=source.kind==='radio'?(r.programs||[]).map(program):(r.songs||[]).map(track)
     state.queue.push(...rows);target=rows[0]
   }
@@ -337,6 +360,8 @@ export async function next(ended=false) {
   if(target)await play(target)
 }
 export async function previous() {
+  if(remoteApplying)throw new Error('正在同步听友的播放，请稍候')
+  if(state.room.id&&!state.room.connected)throw new Error('一起听正在重连，请稍候')
   if(state.progress>3){await seek(0);return}
   const old=state.history.pop();const index=state.queue.findIndex(t=>t.id===state.current?.id)
   const t=old || state.queue[(index-1+state.queue.length)%state.queue.length]
@@ -358,7 +383,7 @@ audio.addEventListener('ended',()=>{guard(next)(true)})
 audio.addEventListener('error',()=>{if(audio.getAttribute('src')){state.error='音源加载失败，可点击播放重试';state.loading=false;state.playing=false}})
 if('mediaSession' in navigator)for(const [action,handler]of Object.entries({play:()=>{if(!state.playing)guard(toggle)()},pause:()=>{if(state.playing)guard(toggle)()},nexttrack:guard(next),previoustrack:guard(previous),seekto:e=>guard(seek)(e.seekTime)}))try{navigator.mediaSession.setActionHandler(action,handler)}catch{}
 
-function stopRoom() { ++statsEpoch;statsBusy=false;state.togetherStats.loading=false;const interrupted=state.loading;++roomEpoch;++audioEpoch;state.loading=false;if(interrupted){desiredPlaying=false;audio.pause();state.error='播放已中断，点击播放继续这首歌'}clearTimeout(roomTimer);pollBusy=false;state.room={id:'',members:[],creator:'',connected:false,busy:false,error:'',invite:'',seq:0,checked:null};roomFingerprint='';remoteApplying=false;lastLocalRoomWrite=null;portraitRequests.clear();++roomRevision }
+function stopRoom() { pendingRoomPause=null;++statsEpoch;statsBusy=false;state.togetherStats.loading=false;const interrupted=state.loading;++roomEpoch;++audioEpoch;state.loading=false;if(interrupted){desiredPlaying=false;audio.pause();state.error='播放已中断，点击播放继续这首歌'}clearTimeout(roomTimer);pollBusy=false;state.room={id:'',members:[],creator:'',connected:false,busy:false,error:'',invite:'',seq:0,checked:null};roomCommands.reset();remoteApplying=false;portraitRequests.clear();++roomRevision }
 export const roomParticipants=computed(()=>state.room.id?roomMembers(state.room.members.map(m=>({userId:m.id,nickname:m.name,avatarUrl:m.avatar})),state.profile,state.room.members):state.profile?[{id:String(state.profile.userId),name:state.profile.nickname,avatar:state.profile.avatarUrl}]:[])
 export const roomStatus=computed(()=>!state.room.id?'单人播放':!state.room.connected?state.room.error||'正在重连':roomParticipants.value.length<2?'等待听友加入':'双人同听中')
 export const togetherTotalLabel=computed(()=>formatTogetherTotal(state.togetherStats.totalSeconds))
@@ -401,7 +426,7 @@ function setRoom(info) {
   if(!info?.roomId)throw new Error('房间信息不完整，请重试')
   state.room.id=String(info.roomId);state.room.creator=String(info.creatorId||info.inviterId||0)
   updateRoomMembers(info.roomUsers)
-  state.room.connected=true;state.room.error='';state.mode='sequence';state.queue=state.queue.map(t=>({...t,recommended:false}));roomFingerprint=''
+  state.room.connected=true;state.room.error='';state.mode='sequence';state.queue=state.queue.map(t=>({...t,recommended:false}));roomCommands.reset()
 }
 export async function restoreRoom() {
   const generation=roomEpoch,r=await call('listentogether_status')
@@ -452,9 +477,12 @@ async function syncQueue() {
 async function sendCommand(commandType,extra={}) {
   if(!state.room.id||remoteApplying||!state.current)return
   ++roomRevision
-  const args={roomId:state.room.id,commandType,playStatus:state.playing?'PLAY':'PAUSE',targetSongId:state.current.id,formerSongId:state.current.id,progress:Math.round(state.progress*1000),clientSeq:++state.room.seq,...extra}
-  await roomWrite(()=>call('listentogether_play_command',args))
-  lastLocalRoomWrite={time:Date.now(),seq:args.clientSeq}
+  const args={roomId:state.room.id,commandType,playStatus:desiredPlaying?'PLAY':'PAUSE',targetSongId:state.current.id,formerSongId:state.current.id,progress:Math.round(state.progress*1000),clientSeq:++state.room.seq,...extra}
+  const local=roomCommands.begin(args,state.profile?.userId)
+  if(!state.room.connected&&commandType==='PAUSE'){pendingRoomPause={args,local};++roomRevision;return}
+  try {await roomWrite(()=>call('listentogether_play_command',args));roomCommands.finish(local)}
+  catch(error){roomCommands.fail(local);throw error}
+  finally{++roomRevision}
 }
 function startPolling() {clearTimeout(roomTimer);roomTimer=setTimeout(pollRoom,100)}
 async function pollRoom() {
@@ -464,26 +492,30 @@ async function pollRoom() {
     const [status,r]=await Promise.all([call('listentogether_status'),call('listentogether_sync_playlist_get',{roomId:id})]);if(generation!==roomEpoch)return
     if(!status.data?.inRoom||String(status.data.roomInfo?.roomId)!==id){stopRoom();toast('一起听房间已结束');return}
     const info=status.data.roomInfo;updateRoomMembers(info.roomUsers);state.room.connected=true;state.room.error=''
+    if(pendingRoomPause){
+      const pending=pendingRoomPause
+      await roomWrite(()=>call('listentogether_play_command',pending.args))
+      if(generation===roomEpoch&&pendingRoomPause===pending){roomCommands.finish(pending.local);pendingRoomPause=null;++roomRevision}
+      return
+    }
     if(revision!==roomRevision)return
     const data=r.data||{},command=data.playCommand,rawQueue=data.playlist?.displayList
     const queue=Array.isArray(rawQueue)?rawQueue:Array.isArray(rawQueue?.result)?rawQueue.result:[]
     const ids=queue.map(x=>String(typeof x==='object'?x.songId||x.id:x)).filter(x=>/^\d+$/.test(x))
     if(ids.length&&ids.join(',')!==state.queue.map(t=>t.id).join(',')) {
-      const details=await call('song_detail',{ids:ids.join(',')});if(generation!==roomEpoch)return
+      const details=await call('song_detail',{ids:ids.join(',')});if(generation!==roomEpoch||revision!==roomRevision)return
       const mapped=(details.songs||[]).map(track);state.queue=ids.map(id=>mapped.find(t=>t.id===id)).filter(Boolean);state.source={id:'0',title:'共同列表'}
     }
     if(command?.targetSongId&&/^\d+$/.test(String(command.targetSongId))) {
-      state.room.seq=Math.max(state.room.seq,Number(command.clientSeq)||0)
-      const fp=[command.userId,command.targetSongId,command.commandType,command.clientSeq,command.playStatus,command.progress,command.timestamp||command.updateTime||command.serverTime].join(':')
+      const clientSeq=Number(command.clientSeq)
+      if(Number.isSafeInteger(clientSeq)&&clientSeq>=0&&clientSeq<Number.MAX_SAFE_INTEGER)state.room.seq=Math.max(state.room.seq,clientSeq)
       const progress=Number(command.progress||0)/1000,playing=command.playStatus==='PLAY'
-      const stamp=Number(command.timestamp||command.updateTime||command.serverTime||0)
-      const outdated=lastLocalRoomWrite&&stamp>0&&stamp<lastLocalRoomWrite.time&&Number(command.clientSeq)<=lastLocalRoomWrite.seq
-      if(fp!==roomFingerprint&&!outdated&&Number.isFinite(progress)&&progress>=0&&progress<86400&&['PLAY','PAUSE'].includes(command.playStatus)) {
-        roomFingerprint=fp;remoteApplying=true
+      if(roomCommands.accept(command)) {
+        remoteApplying=true
         try {
           if(state.current?.id!==String(command.targetSongId)) {
             let t=state.queue.find(t=>t.id===String(command.targetSongId))
-            if(!t){const detail=await call('song_detail',{ids:String(command.targetSongId)});if(generation!==roomEpoch)return;t=track(detail.songs[0])}
+            if(!t){const detail=await call('song_detail',{ids:String(command.targetSongId)});if(generation!==roomEpoch||revision!==roomRevision)return;t=track(detail.songs[0])}
             await loadTrack(t,{remote:true,progress,playing})
           } else if(!state.loading) {
             if(Math.abs(audio.currentTime-progress)>2.5)await seek(progress,true)

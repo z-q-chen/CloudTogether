@@ -119,3 +119,77 @@ test('official cumulative pair duration uses seconds and preserves thousands of 
   assert.throws(()=>validate('listentogether_statistics',{roomId:'room',cookie:'secret'}))
   assert.equal(validate('listentogether_statistics',{userId:'8'}).userId,'8')
 })
+
+test('room snapshots use server order, not refreshed clocks or playback progress',async()=>{
+  const {RoomCommands}=await import('../src/renderer/room-sync.mjs'),sync=new RoomCommands()
+  const command={userId:8,serverSeq:'90071992547409930',clientSeq:1,targetSongId:'101',commandType:'PLAY',playStatus:'PLAY',progress:0}
+  assert.equal(sync.accept(command),true)
+  assert.equal(sync.accept({...command,progress:2000,timestamp:Date.now()}),false)
+  assert.equal(sync.accept({...command,serverSeq:'90071992547409929',playStatus:'PAUSE'}),false)
+  assert.equal(sync.accept({...command,serverSeq:'90071992547409931',playStatus:'PAUSE',commandType:'PAUSE'}),true)
+})
+test('local pause does not accept stale self echoes without timestamps',async()=>{
+  const {RoomCommands}=await import('../src/renderer/room-sync.mjs'),sync=new RoomCommands()
+  const pause={clientSeq:4,targetSongId:'101',commandType:'PAUSE',playStatus:'PAUSE',progress:12000}
+  const pending=sync.begin(pause,7)
+  assert.equal(sync.accept({userId:7,clientSeq:3,targetSongId:'101',commandType:'PLAY',playStatus:'PLAY',progress:0}),false)
+  sync.finish(pending)
+  assert.equal(sync.accept({...pause,userId:7,outerId:'desktop'}),false)
+  assert.equal(sync.accept({...pause,userId:8,clientSeq:1,commandType:'PLAY',playStatus:'PLAY'}),true)
+})
+test('progress-only snapshot changes are not repeated play commands',async()=>{
+  const {RoomCommands}=await import('../src/renderer/room-sync.mjs'),sync=new RoomCommands()
+  const command={userId:8,clientSeq:5,targetSongId:'101',commandType:'PLAY',playStatus:'PLAY',progress:0}
+  assert.equal(sync.accept(command),true)
+  assert.equal(sync.accept({...command,progress:3000,timestamp:Date.now()}),false)
+  assert.equal(sync.accept({...command,clientSeq:6,commandType:'PROGRESS',progress:60000}),true)
+})
+test('pending pause survives metadata-free stale snapshots and accepts its acknowledgement',async()=>{
+  const {RoomCommands}=await import('../src/renderer/room-sync.mjs'),sync=new RoomCommands()
+  const pause={clientSeq:4,targetSongId:'101',commandType:'PAUSE',playStatus:'PAUSE',progress:12000},pending=sync.begin(pause,7)
+  assert.equal(sync.accept({targetSongId:'101',commandType:'PLAY',playStatus:'PLAY',progress:0}),false)
+  sync.finish(pending)
+  assert.equal(sync.accept({targetSongId:'101',commandType:'PLAY',playStatus:'PLAY',progress:2000}),false)
+  assert.equal(sync.accept({targetSongId:'101',commandType:'PAUSE',playStatus:'PAUSE',progress:12000}),false)
+  assert.equal(sync.accept({targetSongId:'101',commandType:'PLAY',playStatus:'PLAY',progress:2000}),true)
+})
+test('another device on the same account can send a new command with a smaller client counter',async()=>{
+  const {RoomCommands}=await import('../src/renderer/room-sync.mjs'),sync=new RoomCommands()
+  const pause={clientSeq:40,targetSongId:'101',commandType:'PAUSE',playStatus:'PAUSE',progress:12000}
+  let pending=sync.begin(pause,7);sync.finish(pending)
+  assert.equal(sync.accept({...pause,userId:7,outerId:'desktop',serverSeq:5}),false)
+  pending=sync.begin({...pause,clientSeq:41},7);sync.finish(pending)
+  assert.equal(sync.accept({...pause,userId:7,outerId:'phone',clientSeq:1,serverSeq:6,commandType:'PLAY',playStatus:'PLAY'}),true)
+})
+test('late command acknowledgements cannot unlock a newer local pause',async()=>{
+  const {RoomCommands}=await import('../src/renderer/room-sync.mjs'),sync=new RoomCommands()
+  const first=sync.begin({clientSeq:1,targetSongId:'101',commandType:'PLAY',playStatus:'PLAY'},7)
+  const second=sync.begin({clientSeq:2,targetSongId:'101',commandType:'PAUSE',playStatus:'PAUSE'},7)
+  sync.finish(first);assert.equal(second.pending,true)
+  sync.fail(first);assert.equal(sync.local,second)
+  assert.equal(sync.accept({userId:8,targetSongId:'101',clientSeq:3,commandType:'PLAY',playStatus:'PLAY'}),false)
+  sync.finish(second);assert.equal(sync.accept({userId:8,targetSongId:'101',clientSeq:3,commandType:'PLAY',playStatus:'PLAY'}),true)
+  sync.reset();assert.equal(sync.accept({userId:8,targetSongId:'101',clientSeq:1,serverSeq:1,commandType:'PLAY',playStatus:'PLAY'}),true)
+})
+test('fresh server commands from the same account work without a device identifier',async()=>{
+  const {RoomCommands}=await import('../src/renderer/room-sync.mjs'),sync=new RoomCommands()
+  const pause={clientSeq:40,targetSongId:'101',commandType:'PAUSE',playStatus:'PAUSE',progress:12000}
+  const pending=sync.begin(pause,7);sync.finish(pending)
+  assert.equal(sync.accept({...pause,userId:7,serverSeq:10}),false)
+  assert.equal(sync.accept({...pause,userId:7,clientSeq:1,serverSeq:11,commandType:'PLAY',playStatus:'PLAY'}),true)
+  sync.reset();sync.finish(sync.begin(pause,7));assert.equal(sync.accept({...pause,userId:7,serverSeq:12}),false)
+  assert.equal(sync.accept({...pause,userId:7,serverSeq:13,commandType:'PLAY',playStatus:'PLAY'}),true)
+})
+
+test('new QR requests and logout invalidate older key generation',async()=>{
+  const folder=temp(),pending=[]
+  const service=new Service({folder,safeStorage,transport:async()=>new Promise(resolve=>pending.push(resolve))})
+  try {
+    const first=service.call('qr',{});const firstRejected=assert.rejects(first,/二维码已更新/)
+    const second=service.call('qr',{});pending[1]({data:{unikey:'new-key'}})
+    assert.equal((await second).key,'new-key')
+    pending[0]({data:{unikey:'old-key'}});await firstRejected;assert.equal(service.qrKey,'new-key')
+    const third=service.call('qr',{});const thirdRejected=assert.rejects(third,/二维码已更新/)
+    await service.call('logout',{});pending[2]({data:{unikey:'late-key'}});await thirdRejected;assert.equal(service.qrKey,'')
+  }finally{fs.rmSync(folder,{recursive:true,force:true})}
+})

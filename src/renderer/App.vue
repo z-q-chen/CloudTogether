@@ -92,7 +92,7 @@ async function chooseTheme(theme){await setPreference('theme',theme);toast('已�
       <div v-if="s.mine.loading&&!s.mine.playlists.length" class="empty-state"><div class="spinner"></div><p>正在同步你的网易云账号…</p></div>
       <div v-else-if="!mineCards.length" class="empty-state"><Icon name="music" :size="32" /><h3>{{s.profile?'这里还没有歌单':'登录后，你的歌单会在这里'}}</h3><p>{{s.mine.error?'同步遇到问题，请重试。':'红心操作会同步到网易云「我喜欢的音乐」。'}}</p></div>
       <div v-else class="cards-grid"><article v-for="p in mineCards" :key="p.id" :data-card-id="p.id" class="cover-card"><div class="cover-wrap"><button class="cover-open" :aria-label="'打开 '+p.name" @click="cardOpen(p)"><Art :src="p.cover" :name="p.name" /></button><button class="card-play" :aria-label="'播放 '+p.name" @click="guard(playCard)(p)"><Icon name="play" :size="20" /></button></div><h3><button :title="p.name" @click="cardOpen(p)">{{p.name}}</button></h3><p>{{p.count}} 首 · {{p.creator}}</p></article></div>
-      <button v-if="s.mine.more" class="secondary load-more" @click="guard(moreMine)()">加载更多歌单</button>
+      <button v-if="s.mine.more" :disabled="s.mine.paging" class="secondary load-more" @click="guard(moreMine)()">加载更多歌单</button>
       <footer class="page-footer"><span>{{s.mine.loaded?'最近同步 '+syncTime:'尚未同步'}}</span><button v-if="s.profile" @click="s.modal='logout'">退出登录</button></footer>
     </div>
 
@@ -102,7 +102,7 @@ async function chooseTheme(theme){await setPreference('theme',theme);toast('已�
       <div v-if="s.detail.error" class="inline-error" role="alert">{{s.detail.error}}<button @click="cardOpen({id:s.detail.id,name:s.detail.title,kind:s.detail.kind,cover:s.detail.cover})">重试</button></div>
       <div v-if="s.detail.loading" class="empty-state"><div class="spinner"></div><p>正在打开这份音乐…</p></div><TrackList v-else :tracks="s.detail.tracks" :source="{id:s.detail.id,title:s.detail.title}" />
       <div v-if="!s.detail.loading&&!s.detail.tracks.length&&!s.detail.error" class="empty-state"><p>这份列表暂时没有可显示的内容。</p></div>
-      <button v-if="s.detail.more" class="secondary load-more" @click="guard(s.detail.kind==='likes'?moreLikes:moreDetail)()">加载更多（{{s.detail.tracks.length}} / {{s.detail.total}}）</button>
+      <button v-if="s.detail.more" :disabled="s.detail.paging" class="secondary load-more" @click="guard(s.detail.kind==='likes'?moreLikes:moreDetail)()">加载更多（{{s.detail.tracks.length}} / {{s.detail.total}}）</button>
     </div>
 
     <div v-else-if="s.page==='search'" class="search-page page-width">

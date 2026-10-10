@@ -119,8 +119,8 @@ const check=async(name,fn)=>{await fn();results.push({name,status:'passed'});con
       await page.locator('.player-room').click();await page.getByRole('button',{name:'复制邀请链接',exact:true}).click();const copied=await app.evaluate(({clipboard})=>clipboard.readText());expect(copied).toContain('roomId=room-qa&inviterId=7');await page.keyboard.press('Escape')
       fixtureApi.setRoomOffline(true);await expect(page.locator('.player-room')).toContainText('连接中断',{timeout:15000})
       const before=fixtureApi.writes.filter(x=>x.method==='listentogether_play_command').length
-      await page.getByRole('button',{name:'暂停',exact:true}).click();await expect(page.locator('.toast')).toContainText('正在重连');expect(fixtureApi.writes.filter(x=>x.method==='listentogether_play_command').length).toBe(before)
-      fixtureApi.setRoomOffline(false);await expect(page.locator('.player-room')).toContainText('双人同听中',{timeout:15000})
+      await page.getByRole('button',{name:'暂停',exact:true}).click();await expect(page.locator('.toast')).toContainText('已暂停');expect(await page.evaluate(()=>window.__qaAudio.paused)).toBe(true);expect(fixtureApi.writes.filter(x=>x.method==='listentogether_play_command').length).toBe(before)
+      fixtureApi.setRoomOffline(false);await expect(page.locator('.player-room')).toContainText('双人同听中',{timeout:15000});await expect.poll(()=>fixtureApi.writes.filter(x=>x.method==='listentogether_play_command').length).toBe(before+1);expect(fixtureApi.writes.filter(x=>x.method==='listentogether_play_command').at(-1).args.playStatus).toBe('PAUSE');expect(await page.evaluate(()=>window.__qaAudio.paused)).toBe(true)
       await page.locator('.player-room').click();await page.getByRole('button',{name:'结束一起听',exact:true}).click();await page.getByRole('button',{name:'确认结束',exact:true}).click()
     })
     await check('IPC边界、凭据不暴露与桌面最小窗口布局',async()=>{
@@ -129,7 +129,7 @@ const check=async(name,fn)=>{await fn();results.push({name,status:'passed'});con
       await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(900,700));await page.waitForTimeout(300);expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false)
       await page.getByRole('button',{name:'收起播放页',exact:true}).click();await page.getByRole('button',{name:'云伴首页'}).click();await expect(page.locator('.skin-button')).toBeVisible();await expect(page.locator('.mini-like')).toBeVisible();await expect(page.getByLabel('音量',{exact:true})).toBeVisible()
       const boxes=await page.locator('.mini-track,.mini-like,.mini-center,.mini-right').evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return {left:b.left,right:b.right}}));for(let i=1;i<boxes.length;i++)expect(boxes[i].left).toBeGreaterThanOrEqual(boxes[i-1].right-1)
-      const centered=await page.getByRole('button',{name:'暂停',exact:true}).boundingBox();const width=await page.evaluate(()=>innerWidth);expect(Math.abs(centered.x+centered.width/2-width/2)).toBeLessThan(1)
+      const centered=await page.locator('.mini-center .play-button').boundingBox();const width=await page.evaluate(()=>innerWidth);expect(Math.abs(centered.x+centered.width/2-width/2)).toBeLessThan(1)
       await expect(page.locator('.mini-room .avatar')).toHaveCount(1);await page.screenshot({path:path.join(out,'08-小窗口-QA.png')})
       expect(errors).toEqual([])
     })

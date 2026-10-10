@@ -13,8 +13,8 @@ async function fixture() {
   const wave=Buffer.alloc(44+24000*2*120)
   wave.write('RIFF');wave.writeUInt32LE(wave.length-8,4);wave.write('WAVEfmt ',8);wave.writeUInt32LE(16,16);wave.writeUInt16LE(1,20);wave.writeUInt16LE(1,22);wave.writeUInt32LE(24000,24);wave.writeUInt32LE(48000,28);wave.writeUInt16LE(2,32);wave.writeUInt16LE(16,34);wave.write('data',36);wave.writeUInt32LE(wave.length-44,40)
   for(let i=0;i<24000*120;i++)wave.writeInt16LE(Math.floor(Math.sin(i/24000*2*Math.PI*220)*500),44+i*2)
-  const writes=[];let inRoom=false,liked=[101,102],failLike=false,roomOffline=false,delayTrack='',roomState={targetSongId:'101',formerSongId:'0',commandType:'PLAY',playStatus:'PLAY',progress:0,clientSeq:1,timestamp:Date.now()},roomQueue=['101','102','103']
-  let roomShape='nested',failDiscover=false,heartDelay=0
+  const writes=[];let inRoom=false,liked=[101,102],failLike=false,roomOffline=false,delayTrack='',roomState={userId:8,serverSeq:1,targetSongId:'101',formerSongId:'0',commandType:'PLAY',playStatus:'PLAY',progress:0,clientSeq:1,timestamp:Date.now()},roomQueue=['101','102','103']
+  let roomShape='nested',failDiscover=false,heartDelay=0,stalePauseMs=0,staleUntil=0,staleCommand=null,commandDelay=0,stripStaleMetadata=false
   const lyricOverrides=new Map(),lyricDelays=new Map()
   let totalConnectionTime=1234*3600+56*60,statsDelay=0,statsFailure=false
   let port
@@ -64,12 +64,20 @@ async function fixture() {
     else if(m==='listentogether_room_check')r={code:200,data:{roomExist:true,roomInfo:room()}}
     else if(m==='listentogether_room_create'||m==='listentogether_accept'){inRoom=true;r={code:200,data:{roomInfo:room()}}}
     else if(m==='listentogether_end'){inRoom=false;r={code:200,data:{success:true}}}
-    else if(m==='listentogether_sync_playlist_get')r={code:200,data:{playlist:{displayList:{result:roomQueue}},playCommand:roomState}}
+    else if(m==='listentogether_sync_playlist_get') {
+      let command=Date.now()<staleUntil?{...staleCommand,timestamp:Date.now(),progress:Number(staleCommand.progress||0)+500}:roomState
+      if(Date.now()<staleUntil&&stripStaleMetadata){command={...command};delete command.clientSeq;delete command.serverSeq;delete command.timestamp;delete command.userId}
+      r={code:200,data:{playlist:{displayList:{result:roomQueue}},playCommand:command}}
+    }
     else if(m==='listentogether_sync_list_command')roomQueue=a.displayList.split(',')
-    else if(m==='listentogether_play_command')roomState={...a,timestamp:Date.now()}
+    else if(m==='listentogether_play_command') {
+      if(a.commandType==='PAUSE'&&stalePauseMs){staleCommand={...roomState};staleUntil=Date.now()+stalePauseMs}
+      if(commandDelay)await new Promise(resolve=>setTimeout(resolve,commandDelay))
+      roomState={...a,userId:7,outerId:'qa-desktop',serverSeq:(roomState.serverSeq||0)+1,timestamp:Date.now()}
+    }
     res.setHeader('Content-Type','application/json');res.end(JSON.stringify(r))
   })
   await new Promise(r=>server.listen(0,'127.0.0.1',r));port=server.address().port
-  return {url:`http://127.0.0.1:${port}/`,writes,server,setStats:v=>totalConnectionTime=v,setStatsDelay:v=>statsDelay=v,setStatsFailure:v=>statsFailure=v,setLyrics:(id,text)=>lyricOverrides.set(String(id),text),setLyricDelay:(id,ms)=>lyricDelays.set(String(id),ms),setRoomShape:v=>roomShape=v,setDiscoverFailure:v=>failDiscover=v,setHeartDelay:v=>heartDelay=v,setFailLike:v=>failLike=v,setRoomOffline:v=>roomOffline=v,setDelay:v=>delayTrack=String(v),remote:command=>roomState={...roomState,...command,clientSeq:roomState.clientSeq+1,timestamp:Date.now()},endRemote:()=>inRoom=false,getLiked:()=>liked}
+  return {url:`http://127.0.0.1:${port}/`,writes,server,setStalePause:(ms,strip=false)=>{stalePauseMs=ms;stripStaleMetadata=strip},setCommandDelay:ms=>commandDelay=ms,setStats:v=>totalConnectionTime=v,setStatsDelay:v=>statsDelay=v,setStatsFailure:v=>statsFailure=v,setLyrics:(id,text)=>lyricOverrides.set(String(id),text),setLyricDelay:(id,ms)=>lyricDelays.set(String(id),ms),setRoomShape:v=>roomShape=v,setDiscoverFailure:v=>failDiscover=v,setHeartDelay:v=>heartDelay=v,setFailLike:v=>failLike=v,setRoomOffline:v=>roomOffline=v,setDelay:v=>delayTrack=String(v),remote:command=>{staleUntil=0;roomState={...roomState,userId:8,outerId:'qa-peer',...command,serverSeq:(roomState.serverSeq||0)+1,clientSeq:roomState.clientSeq+1,timestamp:Date.now()}},endRemote:()=>inRoom=false,getLiked:()=>liked}
 }
 module.exports={fixture}

@@ -13,6 +13,7 @@ npm start
 ```sh
 npm test
 npm run test:desktop
+npm run test:room
 npm run test:lyrics
 node tests/live.cjs
 ```

@@ -24,7 +24,7 @@ const privateMethods = new Set(['like','likelist','user_playlist','recommend_res
 class Service {
   constructor({ folder, safeStorage, transport, mock = false, clipboard }) {
     this.folder = folder; this.safeStorage = safeStorage; this.transport = transport; this.mock = mock
-    this.cookie = ''; this.profile = null; this.epoch = 0; this.qrKey = ''; this.clipboard=clipboard
+    this.cookie = ''; this.profile = null; this.epoch = 0; this.qrGeneration=0; this.qrKey = ''; this.clipboard=clipboard
     this.preferences = { theme:'ink', quality:'exhigh', volume:0.7, font:'sans' }
     fs.mkdirSync(folder, { recursive:true, mode:0o700 })
     try {
@@ -112,7 +112,7 @@ class Service {
       Object.assign(this.preferences,args,{font:'sans'}); this.write('preferences.json',this.preferences); return this.preferences
     }
     if (method === 'logout') {
-      this.epoch++; this.qrKey=''; this.cookie=''; this.profile=null
+      this.epoch++; this.qrGeneration++; this.qrKey=''; this.cookie=''; this.profile=null
       try { fs.unlinkSync(path.join(this.folder,'account.json')) } catch {}
       return { code:200 }
     }
@@ -122,7 +122,9 @@ class Service {
       this.clipboard.writeText(url);return {code:200}
     }
     if (method === 'qr') {
+      const generation=++this.qrGeneration;this.qrKey=''
       const result = await this.request('login_qr_key',{},'')
+      if(epoch!==this.epoch||generation!==this.qrGeneration)throw new Error('二维码已更新，请使用最新二维码')
       const key = result.data?.unikey
       if (!key) throw new Error('暂时无法生成二维码，请重试')
       this.qrKey=key

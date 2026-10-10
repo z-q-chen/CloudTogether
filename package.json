@@ -10,11 +10,12 @@
   "scripts": {
     "build": "vite build",
     "start": "electron .",
-    "test": "node --test --test-isolation=none tests/core.test.cjs",
+    "test": "node --test --test-isolation=none tests/core.test.cjs tests/renderer.test.cjs",
     "test:desktop": "node tests/desktop.cjs",
     "test:lyrics": "node tests/lyrics.cjs",
     "package": "node scripts/package.cjs",
-    "package:deb": "node scripts/package-deb.cjs"
+    "package:deb": "node scripts/package-deb.cjs",
+    "test:room": "node tests/room-pause.cjs"
   },
   "dependencies": {
     "@neteasecloudmusicapienhanced/api": "4.36.1",
